@@ -7,6 +7,8 @@ Porting LLM to Mobile is a project focused on bringing Large Language Models (LL
 ## ✨ Features
 - 🗣️ **Offline AI Chatbot**: Real-time, word-by-word responses.
 - 🪶 **Lightweight LLM Integration**: Uses llama.rn for efficient on-device processing.
+- 📚 **Retrieval-Augmented Generation (RAG)**: Chat with your local PDF and text documents offline.
+- 👤 **Local Profiles**: Isolated data and separate model configurations for different users or contexts.
 - 📱 **Mobile-Native Features**: App launching, alarm setting, calling, and calendar event creation.
 
 ---
@@ -21,6 +23,7 @@ Porting LLM to Mobile is a project focused on bringing Large Language Models (LL
 
 ## 📱 Key Functionalities
 - 💬 Offline AI conversation
+- 📄 Document analysis (Local RAG pipeline)
 - 📲 App launching via voice/text commands
 - ⏰ Alarm management
 - 📞 Call initiation from chatbot commands

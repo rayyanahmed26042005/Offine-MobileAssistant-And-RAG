@@ -2,6 +2,7 @@ export interface LlamaContext {
   completion: (params: {
     prompt?: string;
     messages?: { role: string; content: string }[];
+    jinja?: boolean;
     n_predict: number;
     temperature: number;
     top_p?: number;

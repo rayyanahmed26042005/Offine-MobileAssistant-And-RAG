@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, Alert, StyleSheet, ActivityIndicator, SafeAreaView} from 'react-native';
+import { View, FlatList, Alert, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, ProgressBar, Text, IconButton } from 'react-native-paper';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,7 @@ type Model = {
 };
 import { useProfile } from '../utils/ProfileContext';
 import { profileKey } from '../utils/profileManager';
+import { downloadManager } from '../utils/downloadManager';
 
 const MODELS_DIR = RNFS.ExternalDirectoryPath + '/models';
 // Removed global SELECTED_MODEL_KEY
@@ -25,6 +27,18 @@ const EMBEDDING_MODEL_ID = 'all-minilm-l6-v2-q4_k_m';
 // Removed global EMBEDDING_MODEL_KEY
 
 const initialModels: Model[] = [
+  {
+    id: 'gemma-2-2b-it-Q4_K_M',
+    name: 'Gemma 2 2B (Recommended)',
+    size: 1434085216, // actual file size in bytes (~1.43 GB)
+    requiredRAM: 3, // Math.ceil(1434085216 / 500000000) = 3
+    downloadUrl: 'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf',
+    localPath: null,
+    isDownloaded: false,
+    isDownloading: false,
+    progress: 0,
+    description: 'Instruction-tuned Gemma 2B for chat, reasoning, and general tasks under low RAM.'
+  },
   {
     id: 'tinyllama-1.1b',
     name: 'TinyLlama 1.1B',
@@ -39,7 +53,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'stablelm-2-zephyr-1_6b-Q4_K_M',
-    name: 'StableLM 2 Zephyr 1.6B (Q4_K_M)',
+    name: 'StableLM 2 Zephyr 1.6B',
     size: 1713507840, // ~1.60 GB
     requiredRAM: 4, // Math.ceil(1713507840 / 500000000)
     downloadUrl: 'https://huggingface.co/brittlewis12/stablelm-2-zephyr-1_6b-GGUF/resolve/main/stablelm-2-zephyr-1_6b.Q4_K_M.gguf',
@@ -50,20 +64,8 @@ const initialModels: Model[] = [
     description: 'Chat and reasoning model. Blend of Stability AI’s StableLM and Zephyr fine-tuning.'
   },
   {
-    id: 'gemma-2-2b-it-Q4_K_M',
-    name: 'Gemma-2-2b-it (Q4_K_M)',
-    size: 1434085216, // actual file size in bytes (~1.43 GB)
-    requiredRAM: 3, // Math.ceil(1434085216 / 500000000) = 3
-    downloadUrl: 'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf',
-    localPath: null,
-    isDownloaded: false,
-    isDownloading: false,
-    progress: 0,
-    description: 'Instruction-tuned Gemma 2B for chat, reasoning, and general tasks under low RAM.'
-  },
-  {
     id: 'DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M',
-    name: 'DeepSeek R1 Distill Qwen 1.5B (Q4_K_M)',
+    name: 'DeepSeek R1 1.5B',
     size: 1572134400, // ~1.46 GB
     requiredRAM: 4, // Math.ceil(1572134400 / 500000000)
     downloadUrl: 'https://huggingface.co/unsloth/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B.Q4_K_M.gguf',
@@ -71,11 +73,11 @@ const initialModels: Model[] = [
     isDownloaded: false,
     isDownloading: false,
     progress: 0,
-    description: 'Chat & reasoning optimized. Distilled from DeepSeek LLM.'
+    description: 'Chat & reasoning optimized. Distilled from DeepSeek Qwen model.'
   },
   {
     id: 'phi-2-Q4_K_M',
-    name: 'Phi-2 (Q4_K_M)',
+    name: 'Phi-2',
     size: 1426854400, // ~1.33 GB
     requiredRAM: 3, // Math.ceil(1426854400 / 500000000)
     downloadUrl: 'https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf',
@@ -87,10 +89,10 @@ const initialModels: Model[] = [
   },
   {
     id: 'deepseek-coder-1.3b-instruct',
-    name: 'DeepSeek Coder 1.3B Instruct',
-    size: 2600000000, // Approx. for full model, not quantized
-    requiredRAM: 6, // Math.ceil(2600000000 / 500000000)
-    downloadUrl: 'https://huggingface.co/deepseek-ai/deepseek-coder-1.3b-instruct/resolve/main/model.safetensors',
+    name: 'DeepSeek Coder 1.3B',
+    size: 853000000, // Approx. for Q4_K_M
+    requiredRAM: 2, // Math.ceil(853000000 / 500000000)
+    downloadUrl: 'https://huggingface.co/TheBloke/deepseek-coder-1.3b-instruct-GGUF/resolve/main/deepseek-coder-1.3b-instruct.Q4_K_M.gguf',
     localPath: null,
     isDownloaded: false,
     isDownloading: false,
@@ -99,7 +101,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'OpenGPT-3-Q5_K_S',
-    name: 'OpenGPT-3 (Q5_K_S)',
+    name: 'OpenGPT-3',
     size: 1711144960, // ~1.59 GB
     requiredRAM: 4, // Math.ceil(1711144960 / 500000000)
     downloadUrl: 'https://huggingface.co/mradermacher/OpenGPT-3-GGUF/resolve/main/OpenGPT-3.Q5_K_S.gguf',
@@ -111,7 +113,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'Phi-3.5-mini-instruct.Q4_K_M',
-    name: 'Phi-3.5 mini 4k instruct (Q4_K_M)',
+    name: 'Phi-3.5 Mini',
     size: 2393232608,
     requiredRAM: 5, // Math.ceil(2393232608 / 500000000) = 5
     downloadUrl: 'https://huggingface.co/MaziyarPanahi/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct.Q4_K_M.gguf',
@@ -123,7 +125,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'qwen2.5-1.5b-instruct-q8_0',
-    name: 'Qwen2.5-1.5B-Instruct (Q8_0)',
+    name: 'Qwen 2.5 1.5B',
     size: 1894532128,
     requiredRAM: 4, // Math.ceil(1894532128 / 500000000) = 4
     downloadUrl: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q8_0.gguf',
@@ -135,7 +137,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'qwen2.5-3b-instruct-q5_k_m',
-    name: 'Qwen2.5-3B-Instruct (Q5_K_M)',
+    name: 'Qwen 2.5 3B',
     size: 2438740384,
     requiredRAM: 5, // Math.ceil(2438740384 / 500000000) = 5
     downloadUrl: 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q5_k_m.gguf',
@@ -147,7 +149,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'llama-3.2-1b-instruct-q8_0',
-    name: 'Llama-3.2-1b-instruct (Q8_0)',
+    name: 'Llama 3.2 1B',
     size: 1321079200,
     requiredRAM: 3, // Math.ceil(1321079200 / 500000000) = 3
     downloadUrl: 'https://huggingface.co/hugging-quants/Llama-3.2-1B-Instruct-Q8_0-GGUF/resolve/main/llama-3.2-1b-instruct-q8_0.gguf',
@@ -159,7 +161,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'Llama-3.2-3B-Instruct-Q6_K',
-    name: 'Llama-3.2-3B-Instruct (Q6_K)',
+    name: 'Llama 3.2 3B',
     size: 2643853856,
     requiredRAM: 6, // Math.ceil(2643853856 / 500000000) = 6
     downloadUrl: 'https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q6_K.gguf',
@@ -171,7 +173,7 @@ const initialModels: Model[] = [
   },
   {
     id: 'all-minilm-l6-v2-q4_k_m',
-    name: 'all-MiniLM-L6-v2 (Embedding Model)',
+    name: 'MiniLM L6 v2 (Embedding Model)',
     size: 45000000,
     requiredRAM: 1,
     downloadUrl: 'https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-Q4_K_M.gguf',
@@ -188,7 +190,6 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
   const activeDownloadRef = React.useRef<string | null>(null);
-  const activeJobs = React.useRef(new Map<string, number>());
   const { profileId } = useProfile();
 
   const SELECTED_MODEL_KEY = profileId ? profileKey(profileId, '_selected_model') : 'selected_model';
@@ -205,9 +206,28 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
           AsyncStorage.getItem(SELECTED_MODEL_KEY)
         ]);
 
-        let modelList = savedModels ? JSON.parse(savedModels) : initialModels;
-        if (!modelList || modelList.length === 0) {
-          modelList = initialModels;
+        let modelList = initialModels;
+        if (savedModels) {
+          try {
+            const savedList = JSON.parse(savedModels);
+            if (Array.isArray(savedList)) {
+              modelList = initialModels.map(initModel => {
+                const savedModel = savedList.find(s => s.id === initModel.id);
+                if (savedModel) {
+                  return {
+                    ...initModel,
+                    localPath: savedModel.localPath,
+                    isDownloaded: savedModel.isDownloaded,
+                    isDownloading: savedModel.isDownloading,
+                    progress: savedModel.progress,
+                  };
+                }
+                return initModel;
+              });
+            }
+          } catch (e) {
+            console.error('Failed to parse saved models:', e);
+          }
         }
         const verifiedModels = await verifyModelFiles(modelList);
 
@@ -221,13 +241,42 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
     };
 
     loadModels();
-
-    // Cleanup on component unmount
-    return () => {
-      activeJobs.current.forEach(jobId => RNFS.stopDownload(jobId));
-      activeJobs.current.clear();
-    };
   }, []);
+
+  // Listen to background downloads progress
+  useEffect(() => {
+    const listener = (data: any) => {
+      setModels(prev =>
+        prev.map(m =>
+          m.id === data.modelId
+            ? { ...m, progress: data.progress, isDownloading: data.isDownloading }
+            : m
+        )
+      );
+      if (data.isDownloading) {
+        setActiveDownload(data.modelId);
+        activeDownloadRef.current = data.modelId;
+      } else {
+        setActiveDownload(prev => prev === data.modelId ? null : prev);
+        if (activeDownloadRef.current === data.modelId) {
+          activeDownloadRef.current = null;
+        }
+        // Re-verify files when downloading stops to ensure completeness shows up
+        AsyncStorage.getItem(MODELS_KEY).then(saved => {
+          if (saved) {
+            const list = JSON.parse(saved);
+            verifyModelFiles(list).then(verified => setModels(verified));
+          }
+        });
+      }
+    };
+
+    downloadManager.registerListener(listener);
+
+    return () => {
+      downloadManager.unregisterListener(listener);
+    };
+  }, [MODELS_KEY]);
 
   const verifyModelFiles = async (modelList: Model[]) => {
     return Promise.all(modelList.map(async model => ({
@@ -265,7 +314,6 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
 
     setActiveDownload(null);
     activeDownloadRef.current = null;
-    activeJobs.current.delete(modelId);
     if (error?.message !== 'Download has been aborted') {
        Alert.alert('Error', 'Download failed or was interrupted\n' + (error?.message || ''));
     }
@@ -276,68 +324,25 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
       return;
     }
 
+    const model = models.find(m => m.id === modelId)!;
     activeDownloadRef.current = modelId;
     setActiveDownload(modelId);
-    setModels(prev => prev.map(m =>
-      m.id === modelId ? { ...m, isDownloading: true, progress: 0 } : m
-    ));
 
-    try {
-      const model = models.find(m => m.id === modelId)!;
-      const ext = model.downloadUrl.split('.').pop()?.split('?')[0] || 'gguf';
-      const localPath = `${MODELS_DIR}/${modelId}.${ext}`;
-      
-      const options = {
-        fromUrl: model.downloadUrl,
-        toFile: localPath,
-        progress: (res: any) => {
-          const total = res.contentLength || model.size || 1;
-          const progress = Math.min(Math.floor((res.bytesWritten / total) * 100), 99);
-          setModels(prev => prev.map(m =>
-            m.id === modelId ? { ...m, progress } : m
-          ));
-        },
-        progressDivider: 1,
-        begin: (res: any) => {
-          console.log('Download started:', res.statusCode, res.headers);
-        },
-        connectionTimeout: 30000,
-        readTimeout: 30000,
-        background: true,
-        cacheable: false
-      };
-
-      const ret = RNFS.downloadFile(options);
-      activeJobs.current.set(modelId, ret.jobId);
-      
-      const result = await ret.promise;
-      
-      if (result.statusCode !== 200) {
-        throw new Error(`Server returned status code ${result.statusCode}`);
+    downloadManager.startDownload(
+      modelId,
+      model.downloadUrl,
+      model.size,
+      MODELS_KEY,
+      () => {
+        activeDownloadRef.current = null;
+        AsyncStorage.getItem(MODELS_KEY).then(saved => {
+          if (saved) {
+            const list = JSON.parse(saved);
+            verifyModelFiles(list).then(verified => setModels(verified));
+          }
+        });
       }
-
-      let latestUpdatedModels: Model[] = [];
-      setModels(prev => {
-        latestUpdatedModels = prev.map(m =>
-          m.id === modelId ? {
-            ...m,
-            isDownloaded: true,
-            isDownloading: false,
-            localPath,
-            progress: 100
-          } : m
-        );
-        return latestUpdatedModels;
-      });
-
-      await saveModels(latestUpdatedModels);
-      setActiveDownload(null);
-      activeDownloadRef.current = null;
-      activeJobs.current.delete(modelId);
-    } catch (error: any) {
-      console.error('Download error:', error);
-      await handleDownloadError(modelId, error);
-    }
+    );
   };
 
   const handleDelete = async (modelId: string) => {
@@ -403,7 +408,15 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <IconButton
+          icon="arrow-left"
+          iconColor="#9CA3AF"
+          size={24}
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        />
         <Text style={styles.headerTitle}>MODELS</Text>
+        <View style={{ width: 48 }} />
       </View>
       <FlatList
         data={models}
@@ -462,10 +475,22 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
                   <Button
                     mode="outlined"
                     onPress={async () => {
-                      const jobId = activeJobs.current.get(item.id);
-                      if (jobId) {
-                        RNFS.stopDownload(jobId);
-                        await handleDownloadError(item.id, { message: 'Download has been aborted' });
+                      const model = models.find(m => m.id === item.id);
+                      if (model) {
+                        downloadManager.stopDownload(
+                          item.id,
+                          model.downloadUrl,
+                          MODELS_KEY,
+                          () => {
+                            activeDownloadRef.current = null;
+                            AsyncStorage.getItem(MODELS_KEY).then(saved => {
+                              if (saved) {
+                                const list = JSON.parse(saved);
+                                verifyModelFiles(list).then(verified => setModels(verified));
+                              }
+                            });
+                          }
+                        );
                       }
                     }}
                     style={styles.cancelButton}
@@ -510,13 +535,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B0F19',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#1F2937',
     backgroundColor: '#101626',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    margin: 0,
   },
   headerTitle: {
     fontSize: 20,

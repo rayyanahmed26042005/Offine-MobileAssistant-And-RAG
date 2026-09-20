@@ -9,8 +9,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { pick, types, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +18,8 @@ import { ingestTextDoc, removeDoc } from '../utils/rag/ragPipeline';
 import { getIndexSize } from '../utils/rag/vectorStore';
 import { useProfile } from '../utils/ProfileContext';
 import { profileKey } from '../utils/profileManager';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { initEmbeddingModel } from '../utils/rag/embedder';
 
 interface DocMeta {
   id: string;
@@ -26,12 +28,14 @@ interface DocMeta {
   chunkCount: number;
 }
 
-const DocumentsScreen = () => {
+const DocumentsScreen = ({ navigation }: { navigation: any }) => {
   const [docs, setDocs] = useState<DocMeta[]>([]);
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestStatus, setIngestStatus] = useState('');
   const [indexSize, setIndexSize] = useState(0);
   const [embeddingReady, setEmbeddingReady] = useState(false);
+  const [isModelDownloaded, setIsModelDownloaded] = useState(false);
+  const [isCheckingModel, setIsCheckingModel] = useState(true);
   const { profileId } = useProfile();
 
   // Bug #12 fix: compute key dynamically so it never goes stale
@@ -39,29 +43,63 @@ const DocumentsScreen = () => {
     return profileId ? profileKey(profileId, '_docs_meta') : 'rag_docs_metadata';
   }, [profileId]);
 
-  // Bug #9 fix: removed duplicate initRAG/initEmbeddingModel calls.
-  // ProfileContext handles initialization. We just load local metadata.
-  // Bug #12 fix: depend on profileId so it re-runs when profile changes.
-  useEffect(() => {
-    if (!profileId) return;
-    bootstrap();
-  }, [profileId]);
-
-  const bootstrap = async () => {
+  const checkEmbeddingModelStatus = useCallback(async () => {
     if (!profileId) return;
     try {
-      // RAG + embedding are already initialized by ProfileContext.
-      // Just mark as ready and load doc metadata.
-      setEmbeddingReady(true);
+      setIsCheckingModel(true);
+      const modelPath = `${RNFS.ExternalDirectoryPath}/models/all-minilm-l6-v2-q4_k_m.gguf`;
+      const exists = await RNFS.exists(modelPath);
+      setIsModelDownloaded(exists);
+      
+      if (exists) {
+        // Automatically default/select MiniLM as the embedding model if not selected
+        const selected = await AsyncStorage.getItem(profileKey(profileId, '_embedding_model'));
+        if (!selected) {
+          await AsyncStorage.setItem(profileKey(profileId, '_embedding_model'), 'all-minilm-l6-v2-q4_k_m');
+        }
+        // Initialize embedding model context
+        await initEmbeddingModel(profileId);
+        setEmbeddingReady(true);
+      } else {
+        setEmbeddingReady(false);
+      }
+    } catch (err) {
+      console.warn('Error checking embedding model status:', err);
+      setEmbeddingReady(false);
+    } finally {
+      setIsCheckingModel(false);
+    }
+  }, [profileId]);
+
+  // Load doc metadata and index size
+  const bootstrap = useCallback(async () => {
+    if (!profileId) return;
+    try {
       setIndexSize(getIndexSize(profileId));
       await loadDocsMeta();
     } catch (err: any) {
-      Alert.alert(
-        'Embedding Model Not Ready',
-        err.message || 'Please download and select an embedding model first.'
-      );
+      console.error('Bootstrap docs meta failed:', err);
     }
-  };
+  }, [profileId]);
+
+  useEffect(() => {
+    if (!profileId) return;
+    bootstrap();
+  }, [profileId, bootstrap]);
+
+  useEffect(() => {
+    if (!profileId) return;
+    
+    // Initial check
+    checkEmbeddingModelStatus();
+
+    // Re-check when screen gains focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkEmbeddingModelStatus();
+    });
+
+    return unsubscribe;
+  }, [profileId, navigation, checkEmbeddingModelStatus]);
 
   const loadDocsMeta = async () => {
     const key = getDocsMetaKey();
@@ -188,8 +226,14 @@ const DocumentsScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>DOCUMENTS</Text>
-        <Text style={styles.indexInfo}>{indexSize} vectors in index</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Icon name="arrow-back" size={24} color="#E5E7EB" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>DOCUMENTS</Text>
+          <Text style={styles.indexInfo}>{indexSize} vectors in index</Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
       {isIngesting ? (
@@ -199,16 +243,51 @@ const DocumentsScreen = () => {
         </View>
       ) : (
         <>
+          {isCheckingModel ? (
+            <View style={styles.bannerContainer}>
+              <ActivityIndicator size="small" color="#8B5CF6" style={{ marginRight: 12 }} />
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.bannerTitle}>Checking embedding model...</Text>
+              </View>
+            </View>
+          ) : !isModelDownloaded ? (
+            <View style={styles.bannerContainer}>
+              <View style={styles.bannerIconContainer}>
+                <Icon name="warning" size={24} color="#F59E0B" />
+              </View>
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.bannerTitle}>Embedding Model Needed</Text>
+                <Text style={styles.bannerSub}>
+                  The embedding model is not downloaded. Please download it to enable document upload and search.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.bannerButton}
+                onPress={() => navigation.navigate('Models')}
+              >
+                <Text style={styles.bannerButtonText}>Download</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !embeddingReady ? (
+            <View style={styles.bannerContainer}>
+              <ActivityIndicator size="small" color="#8B5CF6" style={{ marginRight: 12 }} />
+              <View style={styles.bannerTextContainer}>
+                <Text style={styles.bannerTitle}>Loading Model...</Text>
+                <Text style={styles.bannerSub}>Initializing embedding engine...</Text>
+              </View>
+            </View>
+          ) : null}
+
           <TouchableOpacity
             style={[
               styles.uploadButton,
-              !embeddingReady && styles.uploadButtonDisabled,
+              (!embeddingReady || !isModelDownloaded) && styles.uploadButtonDisabled,
             ]}
             onPress={handlePickDocument}
-            disabled={!embeddingReady}
+            disabled={!embeddingReady || !isModelDownloaded}
           >
             <Text style={styles.uploadButtonText}>
-              {embeddingReady ? '+ Upload Document' : 'Embedding model not ready'}
+              {embeddingReady && isModelDownloaded ? '+ Upload Document' : 'Embedding model not ready'}
             </Text>
           </TouchableOpacity>
 
@@ -238,12 +317,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B0F19',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1F2937',
     backgroundColor: '#101626',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerCenter: {
+    alignItems: 'center',
+    flex: 1,
   },
   headerTitle: {
     fontSize: 20,
@@ -336,6 +424,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginTop: 8,
+    fontFamily: 'sans-serif',
+  },
+  bannerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    margin: 20,
+    marginBottom: 0,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  bannerIconContainer: {
+    marginRight: 12,
+  },
+  bannerTextContainer: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
+    fontFamily: 'sans-serif',
+  },
+  bannerSub: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 2,
+    fontFamily: 'sans-serif',
+  },
+  bannerButton: {
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  bannerButtonText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
     fontFamily: 'sans-serif',
   },
 });

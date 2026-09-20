@@ -18,9 +18,10 @@ let embeddingContexts: Record<string, LlamaContext> = {};
 export async function initEmbeddingModel(profileId: string): Promise<void> {
     if (embeddingContexts[profileId]) return; // already initialized
 
-    const modelId = await AsyncStorage.getItem(profileKey(profileId, '_embedding_model'));
+    let modelId = await AsyncStorage.getItem(profileKey(profileId, '_embedding_model'));
     if (!modelId) {
-        throw new Error('No embedding model selected. Please download and select an embedding model.');
+        modelId = 'all-minilm-l6-v2-q4_k_m';
+        await AsyncStorage.setItem(profileKey(profileId, '_embedding_model'), modelId);
     }
 
     const modelPath = `${MODELS_DIR}/${modelId}.gguf`;

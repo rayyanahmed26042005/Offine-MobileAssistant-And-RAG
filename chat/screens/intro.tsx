@@ -12,7 +12,7 @@ import Swiper from 'react-native-swiper';
 import { useProfile } from '../utils/ProfileContext';
 
 type RootStackParamList = {
-  Main: undefined;
+  Chat: undefined;
   ProfileSelect: undefined;
 };
 
@@ -38,7 +38,7 @@ const Intro = () => {
           />
           <View style={styles.textContainer}>
             <Text style={styles.title}>
-              Meet <Text style={styles.highlight}>Sundae</Text>!
+              Meet <Text style={styles.highlight}>Genix</Text>!
             </Text>
             <Text style={styles.subtitle}>Your own AI assistant</Text>
             <Text style={styles.description}>
@@ -62,7 +62,7 @@ const Intro = () => {
             style={styles.button}
             onPress={() => {
               if (profileId) {
-                navigation.replace('Main');
+                navigation.replace('Chat');
               } else {
                 navigation.replace('ProfileSelect');
               }

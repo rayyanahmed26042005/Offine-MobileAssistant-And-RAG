@@ -17,65 +17,11 @@ import ProfileSelectScreen from './screens/ProfileSelectScreen';
 import DocumentsScreen from './screens/DocumentsScreen';
 
 
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ProfileProvider, useProfile } from './utils/ProfileContext';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-
-const MainTabs = () => {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#F5F4FF',
-        tabBarInactiveTintColor: 'gray',
-        tabBarStyle: {
-          backgroundColor: '#0B030F',
-          borderTopWidth: 0,
-        },
-      }}
-      initialRouteName="Chat"
-    >
-      <Tab.Screen
-        name="Models"
-        component={Models}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Icon name="folder" size={24} color={focused ? '#F5F4FF' : 'gray'} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Icon name="chat" size={24} color={focused ? '#F5F4FF' : 'gray'} />
-          ),
-        }}
-      />
-      {/* ── NEW TAB ── */}
-      <Tab.Screen
-        name="Documents"
-        component={DocumentsScreen}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Icon name="description" size={24} color={focused ? '#F5F4FF' : 'gray'} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Settings"
-        component={Settings}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <Icon name="settings" size={24} color={focused ? '#F5F4FF' : 'gray'} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
-  );
-};
 
 const AppContent = () => {
   const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
@@ -95,7 +41,6 @@ const AppContent = () => {
         setIsFirstLaunch(false);
       }
     };
-
 
     checkFirstLaunch();
   }, []);
@@ -120,7 +65,12 @@ const AppContent = () => {
         {!profileId ? (
           <Stack.Screen name="ProfileSelect" component={ProfileSelectScreen} />
         ) : (
-          <Stack.Screen name="Main" component={MainTabs} />
+          <>
+            <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Models" component={Models} />
+            <Stack.Screen name="Documents" component={DocumentsScreen} />
+            <Stack.Screen name="Settings" component={Settings} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
@@ -128,7 +78,9 @@ const AppContent = () => {
 };
 
 export default () => (
-  <ProfileProvider>
-    <AppContent />
-  </ProfileProvider>
+  <SafeAreaProvider>
+    <ProfileProvider>
+      <AppContent />
+    </ProfileProvider>
+  </SafeAreaProvider>
 );

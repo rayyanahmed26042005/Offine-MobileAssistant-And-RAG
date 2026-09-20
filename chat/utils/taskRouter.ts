@@ -10,7 +10,8 @@ export const routeTask = async (
   input: string,
   context: LlamaContext,
   profileId: string | null,
-  saveTaskToHistory?: (input: string, taskType: string) => Promise<void>
+  saveTaskToHistory?: (input: string, taskType: string) => Promise<void>,
+  chatMode: 'general' | 'document' = 'general'
 ): Promise<string> => {
   const lowerInput = input.toLowerCase();
 
@@ -59,7 +60,7 @@ export const routeTask = async (
     const numberMatch = input.match(/\d{10,}/);
     if (numberMatch) {
       if (saveTaskToHistory) {
-        await saveTaskToHistory(input, 'Call');
+         await saveTaskToHistory(input, 'Call');
       }
       return await handleCall(context, input);
     } else {
@@ -77,5 +78,5 @@ export const routeTask = async (
     return await handleOpenApp(context, input);
   }
 
-  return await handleQA(context, input, profileId);
+  return await handleQA(context, input, profileId, chatMode);
 };
