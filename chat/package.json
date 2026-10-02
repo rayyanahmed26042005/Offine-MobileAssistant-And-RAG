@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",`n    "android:custom-cmake": "cross-env CMAKE_VERSION=3.31.6 react-native run-android",
+    "android": "react-native run-android",
+    "android:custom-cmake": "cross-env CMAKE_VERSION=3.31.6 react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "postinstall": "node scripts/patch-pdf-extractor.js",
