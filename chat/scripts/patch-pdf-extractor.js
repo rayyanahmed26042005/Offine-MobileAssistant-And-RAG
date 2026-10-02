@@ -40,3 +40,22 @@ if (fs.existsSync(targetFile)) {
     console.log('[patch-pdf-extractor] Successfully patched PdfExtractorModule.kt for TurboModules/JNI.');
   }
 }
+
+const targetGradle = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  'react-native-pdf-extractor',
+  'android',
+  'build.gradle'
+);
+
+if (fs.existsSync(targetGradle)) {
+  let gradleContent = fs.readFileSync(targetGradle, 'utf8');
+  if (gradleContent.includes('minifyEnabled true')) {
+    gradleContent = gradleContent.replace('minifyEnabled true', 'minifyEnabled false');
+    fs.writeFileSync(targetGradle, gradleContent, 'utf8');
+    console.log('[patch-pdf-extractor] Successfully disabled minifyEnabled in react-native-pdf-extractor build.gradle.');
+  }
+}
+
