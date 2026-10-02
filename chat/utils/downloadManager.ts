@@ -92,15 +92,19 @@ class DownloadManager {
 
       // Update models list in AsyncStorage
       const savedModels = await AsyncStorage.getItem(modelsKey);
-      if (savedModels) {
-        const list = JSON.parse(savedModels);
-        const updated = list.map((m: any) =>
+      const list = savedModels ? JSON.parse(savedModels) : [];
+      let updated;
+      const found = list.some((m: any) => m.id === modelId);
+      if (found) {
+        updated = list.map((m: any) =>
           m.id === modelId
             ? { ...m, isDownloaded: true, isDownloading: false, localPath, progress: 100 }
             : m
         );
-        await AsyncStorage.setItem(modelsKey, JSON.stringify(updated));
+      } else {
+        updated = [...list, { id: modelId, isDownloaded: true, isDownloading: false, localPath, progress: 100 }];
       }
+      await AsyncStorage.setItem(modelsKey, JSON.stringify(updated));
 
       this.notify(modelId, 100, false);
       onFinish();

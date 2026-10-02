@@ -55,6 +55,8 @@ declare module 'react-native-fs' {
     signal?: AbortSignal;
   }): { jobId: number; promise: Promise<DownloadResult> };
 
+  export function stopDownload(jobId: number): void;
+
   const RNFS: {
     ExternalDirectoryPath: string;
     DocumentDirectoryPath: string;
@@ -68,6 +70,7 @@ declare module 'react-native-fs' {
     unlink: typeof unlink;
     readDir: typeof readDir;
     downloadFile: typeof downloadFile;
+    stopDownload: typeof stopDownload;
   };
 
   export default RNFS;

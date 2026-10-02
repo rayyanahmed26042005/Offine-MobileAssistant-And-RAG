@@ -4,7 +4,7 @@ buildscript {
         minSdkVersion = 24
         compileSdkVersion = 35
         targetSdkVersion = 35
-        ndkVersion = "27.1.12297006"
+        ndkVersion = project.hasProperty("ndkVersion") ? project.property("ndkVersion") : (System.getenv("ANDROID_NDK_VERSION") ?: "27.1.12297006")
         kotlinVersion = "2.0.21"
     }
     repositories {
@@ -19,3 +19,4 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+

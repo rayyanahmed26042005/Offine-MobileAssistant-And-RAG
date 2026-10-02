@@ -197,6 +197,32 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
   const MODELS_KEY = profileId ? profileKey(profileId, '_models') : 'models';
 
   // Load saved models and selection
+  const getExpectedModelPath = (model: Model) => {
+    const ext = model.downloadUrl.split('.').pop()?.split('?')[0] || 'gguf';
+    return `${MODELS_DIR}/${model.id}.${ext}`;
+  };
+
+  const verifyModelFiles = async (modelList: Model[]) => {
+    return Promise.all(
+      modelList.map(async model => {
+        const expectedPath = model.localPath || getExpectedModelPath(model);
+        const exists = await RNFS.exists(expectedPath);
+        return {
+          ...model,
+          localPath: exists ? expectedPath : model.localPath,
+          isDownloaded: exists,
+          progress: exists ? 100 : (model.isDownloading ? model.progress : 0),
+          isDownloading: exists ? false : model.isDownloading,
+        };
+      })
+    );
+  };
+
+  const saveModels = async (updatedModels: Model[]) => {
+    await AsyncStorage.setItem(MODELS_KEY, JSON.stringify(updatedModels));
+  };
+
+  // Load saved models and selection
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -232,6 +258,7 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
         const verifiedModels = await verifyModelFiles(modelList);
 
         setModels(verifiedModels);
+        await saveModels(verifiedModels);
         setSelectedModelId(savedSelected);
       } catch (error) {
         Alert.alert('Error', 'Failed to load models');
@@ -241,17 +268,23 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
     };
 
     loadModels();
-  }, []);
+  }, [MODELS_KEY]);
 
   // Listen to background downloads progress
   useEffect(() => {
     const listener = (data: any) => {
       setModels(prev =>
-        prev.map(m =>
-          m.id === data.modelId
-            ? { ...m, progress: data.progress, isDownloading: data.isDownloading }
-            : m
-        )
+        prev.map(m => {
+          if (m.id !== data.modelId) return m;
+          const isDone = data.progress === 100 && !data.isDownloading;
+          return {
+            ...m,
+            progress: data.progress,
+            isDownloading: data.isDownloading,
+            isDownloaded: isDone ? true : m.isDownloaded,
+            localPath: isDone ? (m.localPath || getExpectedModelPath(m)) : m.localPath,
+          };
+        })
       );
       if (data.isDownloading) {
         setActiveDownload(data.modelId);
@@ -263,10 +296,11 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
         }
         // Re-verify files when downloading stops to ensure completeness shows up
         AsyncStorage.getItem(MODELS_KEY).then(saved => {
-          if (saved) {
-            const list = JSON.parse(saved);
-            verifyModelFiles(list).then(verified => setModels(verified));
-          }
+          const list = saved ? JSON.parse(saved) : initialModels;
+          verifyModelFiles(list).then(verified => {
+            setModels(verified);
+            saveModels(verified);
+          });
         });
       }
     };
@@ -278,17 +312,6 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
     };
   }, [MODELS_KEY]);
 
-  const verifyModelFiles = async (modelList: Model[]) => {
-    return Promise.all(modelList.map(async model => ({
-      ...model,
-      isDownloaded: model.localPath ? await RNFS.exists(model.localPath) : false
-    })));
-  };
-
-  const saveModels = async (updatedModels: Model[]) => {
-    await AsyncStorage.setItem(MODELS_KEY, JSON.stringify(updatedModels));
-  };
-
   const handleDownloadError = async (modelId: string, error?: any) => {
     setModels(prev => {
       const model = prev.find(m => m.id === modelId);
@@ -298,15 +321,14 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
           if (exists) RNFS.unlink(model.localPath!);
         }).catch(err => console.error('Failed to delete partial download:', err));
       } else if (model) {
-        const ext = model.downloadUrl.split('.').pop()?.split('?')[0] || 'gguf';
-        const fallbackPath = `${MODELS_DIR}/${modelId}.${ext}`;
+        const fallbackPath = getExpectedModelPath(model);
         RNFS.exists(fallbackPath).then(exists => {
           if (exists) RNFS.unlink(fallbackPath);
         }).catch(err => console.error('Failed to delete partial download:', err));
       }
 
       const updatedModels = prev.map(m =>
-        m.id === modelId ? { ...m, isDownloading: false, progress: 0, localPath: null } : m
+        m.id === modelId ? { ...m, isDownloading: false, progress: 0, localPath: null, isDownloaded: false } : m
       );
       saveModels(updatedModels);
       return updatedModels;
@@ -336,10 +358,11 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
       () => {
         activeDownloadRef.current = null;
         AsyncStorage.getItem(MODELS_KEY).then(saved => {
-          if (saved) {
-            const list = JSON.parse(saved);
-            verifyModelFiles(list).then(verified => setModels(verified));
-          }
+          const list = saved ? JSON.parse(saved) : initialModels;
+          verifyModelFiles(list).then(verified => {
+            setModels(verified);
+            saveModels(verified);
+          });
         });
       }
     );
@@ -353,7 +376,11 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
         return;
       }
 
-      if (model.localPath) await RNFS.unlink(model.localPath);
+      const filePath = model.localPath || getExpectedModelPath(model);
+      const exists = await RNFS.exists(filePath);
+      if (exists) {
+        await RNFS.unlink(filePath);
+      }
 
       let latestUpdatedModels: Model[] = [];
       setModels(prev => {
@@ -361,7 +388,9 @@ const ModelsScreen = ({ navigation }: { navigation: any }) => {
           m.id === modelId ? {
             ...m,
             isDownloaded: false,
-            localPath: null
+            localPath: null,
+            progress: 0,
+            isDownloading: false,
           } : m
         );
         return latestUpdatedModels;

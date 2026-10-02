@@ -85,6 +85,15 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    externalNativeBuild {
+        cmake {
+            if (project.hasProperty('CMAKE_VERSION')) {
+                version project.property('CMAKE_VERSION')
+            } else if (System.getenv('CMAKE_VERSION')) {
+                version System.getenv('CMAKE_VERSION')
+            }
+        }
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')

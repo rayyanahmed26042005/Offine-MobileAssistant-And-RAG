@@ -177,7 +177,7 @@ const DocumentsScreen = ({ navigation }: { navigation: any }) => {
       setIngestStatus('');
       Alert.alert('Done', `"${name}" indexed with ${chunkCount} chunks.`);
     } catch (err: any) {
-      if (isErrorWithCode(err, errorCodes.OPERATION_CANCELED)) return;
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       Alert.alert('Error', err.message || 'Failed to ingest document.');
     } finally {
       setIsIngesting(false);
